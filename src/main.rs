@@ -10,6 +10,8 @@ use crate::rect::*;
 struct Cli {
     #[structopt(short, long, default_value = "640x320")]
     size: ImageSize,
+    #[structopt(short, long, default_value = "-2.0:2.0:-2.0:2.0")]
+    rect: Rect,
     #[structopt(short, long, default_value = "1")]
     tasks: u8,
     #[structopt(short, long, default_value = "/asd/zad15.png")]
@@ -20,5 +22,5 @@ struct Cli {
 
 fn main() {
     let args = Cli::from_args();
-    println!("{:?}", &args.output);
+    println!("{:?}", &args.rect);
 }
