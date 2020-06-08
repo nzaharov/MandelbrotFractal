@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+#[derive(Debug, PartialEq)]
 pub struct Rect {
     a1: f32,
     a2: f32,

@@ -11,17 +11,11 @@ impl FromStr for ImageSize {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let dimensions: Vec<&str> = s.split("x").collect();
-
-        let width = dimensions
-            .get(0)
-            .ok_or(SizeParseError)?
-            .parse::<u32>()
-            .map_err(|_| SizeParseError)?;
-        let height = dimensions
-            .get(1)
-            .ok_or(SizeParseError)?
-            .parse::<u32>()
-            .map_err(|_| SizeParseError)?;
+        if dimensions.len() != 2 {
+            return Err(SizeParseError);
+        }
+        let width = dimensions[0].parse::<u32>().map_err(|_| SizeParseError)?;
+        let height = dimensions[1].parse::<u32>().map_err(|_| SizeParseError)?;
 
         Ok(Self { width, height })
     }
