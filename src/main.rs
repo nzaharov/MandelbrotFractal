@@ -3,6 +3,7 @@ extern crate image;
 use image::RgbImage;
 
 use std::path::PathBuf;
+use std::time::Instant;
 use structopt::StructOpt;
 
 mod image_size;
@@ -36,11 +37,19 @@ fn main() {
     } = args;
     let mut img = RgbImage::new(size.width, size.height);
 
+    let now = Instant::now();
+
     for x in 0..size.width {
         for y in 0..size.height {
-            img.put_pixel(x, y, mandelbrot(x, y, &rect, &size));
+            let re = x as f64 * (rect.a2 - rect.a1) / (size.width as f64 - 1.0) + rect.a1;
+            let im = y as f64 * (rect.b2 - rect.b1) / (size.height as f64 - 1.0) + rect.b1;
+            img.put_pixel(x, y, mandelbrot(re, im));
         }
     }
 
+    println!("Image buffer filled: {}s", now.elapsed().as_millis());
+
     img.save(file_name).unwrap();
+
+    println!("Image write complete: {}s", now.elapsed().as_millis());
 }

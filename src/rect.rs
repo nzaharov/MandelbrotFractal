@@ -3,10 +3,10 @@ use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub struct Rect {
-    pub a1: f32,
-    pub a2: f32,
-    pub b1: f32,
-    pub b2: f32,
+    pub a1: f64,
+    pub a2: f64,
+    pub b1: f64,
+    pub b2: f64,
 }
 
 impl FromStr for Rect {
@@ -18,8 +18,8 @@ impl FromStr for Rect {
         }
         let bounds = bounds
             .iter()
-            .map(|b| b.parse::<f32>())
-            .collect::<Result<Vec<f32>, std::num::ParseFloatError>>()
+            .map(|b| b.parse::<f64>())
+            .collect::<Result<Vec<f64>, std::num::ParseFloatError>>()
             .map_err(|_| RectParseError)?;
 
         Ok(Self {
