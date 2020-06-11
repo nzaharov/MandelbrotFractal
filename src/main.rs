@@ -42,7 +42,7 @@ fn main() {
     for x in 0..size.width {
         for y in 0..size.height {
             let re = x as f64 * (rect.a2 - rect.a1) / (size.width as f64 - 1.0) + rect.a1;
-            let im = y as f64 * (rect.b2 - rect.b1) / (size.height as f64 - 1.0) + rect.b1;
+            let im = y as f64 * (rect.b2 - rect.b1) / (size.height as f64 - 1.0) + rect.b2;
             img.put_pixel(x, y, mandelbrot(re, im));
         }
     }
