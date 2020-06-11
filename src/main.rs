@@ -38,18 +38,20 @@ fn main() {
     let mut img = RgbImage::new(size.width, size.height);
 
     let now = Instant::now();
+    let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0) + rect.a1;
+    let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0) + rect.b2;
 
     for x in 0..size.width {
         for y in 0..size.height {
-            let re = x as f64 * (rect.a2 - rect.a1) / (size.width as f64 - 1.0) + rect.a1;
-            let im = y as f64 * (rect.b2 - rect.b1) / (size.height as f64 - 1.0) + rect.b2;
+            let re = x as f64 * scale_x;
+            let im = y as f64 * scale_y;
             img.put_pixel(x, y, mandelbrot(re, im));
         }
     }
 
-    println!("Image buffer filled: {}s", now.elapsed().as_millis());
+    println!("Image buffer filled: {}ms", now.elapsed().as_millis());
 
     img.save(file_name).unwrap();
 
-    println!("Image write complete: {}s", now.elapsed().as_millis());
+    println!("Image write complete: {}ms", now.elapsed().as_millis());
 }
