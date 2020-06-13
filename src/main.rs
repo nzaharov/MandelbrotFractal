@@ -20,7 +20,7 @@ struct Cli {
     #[structopt(short, long, default_value = "-2.0:2.0:-2.0:2.0")]
     rect: Rect,
     #[structopt(short, long, default_value = "1")]
-    threads: u8,
+    threads: usize,
     #[structopt(short, long, default_value = "zad15.png")]
     output: PathBuf, // TODO image format validation?
     #[structopt(short = "q", long = "quiet")]
