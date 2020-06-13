@@ -3,6 +3,8 @@ extern crate image;
 use image::RgbImage;
 
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Instant;
 use structopt::StructOpt;
 
@@ -33,26 +35,61 @@ fn main() {
         rect,
         size,
         output: file_name,
+        threads,
         ..
     } = args;
-    let mut img = RgbImage::new(size.width, size.height);
+    let img = RgbImage::new(size.width, size.height);
 
     let now = Instant::now();
 
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
     let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
 
-    for x in 0..size.width {
-        for y in 0..size.height {
-            let re = x as f64 * scale_x + rect.a1;
-            let im = y as f64 * scale_y + rect.b1;
-            img.put_pixel(x, size.height - 1 - y, mandelbrot(re, im));
-        }
+    let band_heights = (0..size.height).collect::<Vec<u32>>();
+    let bands_iter = band_heights
+        .chunks(size.height as usize / threads)
+        .map(|band| {
+            band.iter()
+                .map(|h| {
+                    (0..size.width)
+                        .map(move |w| (*h, w))
+                        .collect::<Vec<(u32, u32)>>()
+                })
+                .flatten()
+                .collect::<Vec<(u32, u32)>>()
+        });
+
+    let mut handles = vec![];
+    let img_arc = Arc::new(Mutex::new(img));
+
+    // for band in bands_iter {
+    //     println!("{:?}", band);
+    // }
+
+    for band in bands_iter {
+        let a1 = rect.a1;
+        let b1 = rect.b1;
+        let img_clone = Arc::clone(&img_arc);
+        let handle = thread::spawn(move || {
+            for (y, x) in band {
+                let re = x as f64 * scale_x + a1;
+                let im = y as f64 * scale_y + b1;
+                img_clone
+                    .lock()
+                    .unwrap()
+                    .put_pixel(x as u32, y as u32, mandelbrot(re, im));
+            }
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
     }
 
     println!("Image buffer filled: {}ms", now.elapsed().as_millis());
 
-    img.save(file_name).unwrap();
+    img_arc.lock().unwrap().save(file_name).unwrap();
 
     println!("Image write complete: {}ms", now.elapsed().as_millis());
 }
