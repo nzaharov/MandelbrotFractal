@@ -45,8 +45,8 @@ fn main() {
     for x in 0..size.width {
         for y in 0..size.height {
             let re = x as f64 * scale_x + rect.a1;
-            let im = y as f64 * scale_y + rect.b2;
-            img.put_pixel(x, y, mandelbrot(re, im));
+            let im = y as f64 * scale_y + rect.b1;
+            img.put_pixel(x, size.height - 1 - y, mandelbrot(re, im));
         }
     }
 
