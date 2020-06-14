@@ -44,6 +44,7 @@ fn main() {
 
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
     let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
+    let height = size.height;
 
     let chunk_size = match size.height as usize / threads / threads {
         0 => 1,
@@ -85,7 +86,7 @@ fn main() {
                     let re = x as f64 * scale_x + a1;
                     let im = y as f64 * scale_y + b1;
                     sender
-                        .send((x as u32, y as u32, mandelbrot(re, im)))
+                        .send((x as u32, height - 1 - y as u32, mandelbrot(re, im)))
                         .unwrap();
                 }
             }
