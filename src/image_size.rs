@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub struct ImageSize {
     pub width: u32,
     pub height: u32,

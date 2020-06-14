@@ -44,7 +44,6 @@ fn main() {
 
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
     let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
-    let height = size.height;
 
     let chunk_size = match size.height as usize / threads / threads {
         0 => 1,
@@ -71,8 +70,6 @@ fn main() {
     let tx_arc = Arc::new(tx);
     let bands_arc = Arc::new(Mutex::new(bands_iter.into_iter()));
     for _ in 0..threads {
-        let a1 = rect.a1;
-        let b1 = rect.b1;
         let bands_clone = Arc::clone(&bands_arc);
         let sender = mpsc::Sender::clone(&tx_arc);
         thread::spawn(move || {
@@ -83,10 +80,10 @@ fn main() {
                     break;
                 }
                 for (y, x) in band.unwrap() {
-                    let re = x as f64 * scale_x + a1;
-                    let im = y as f64 * scale_y + b1;
+                    let re = x as f64 * scale_x + rect.a1;
+                    let im = y as f64 * scale_y + rect.b1;
                     sender
-                        .send((x as u32, height - 1 - y as u32, mandelbrot(re, im)))
+                        .send((x as u32, size.height - 1 - y as u32, mandelbrot(re, im)))
                         .unwrap();
                 }
             }
