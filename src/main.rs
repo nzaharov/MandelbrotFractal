@@ -38,8 +38,6 @@ fn main() {
         threads,
         ..
     } = args;
-    let mut img = RgbImage::new(size.width, size.height);
-
     let now = Instant::now();
 
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
@@ -49,7 +47,6 @@ fn main() {
         0 => 1,
         res => res,
     };
-
     let band_heights: Vec<u32> = (0..size.height).collect::<Vec<u32>>();
     let bands_iter = band_heights
         .chunks(chunk_size)
@@ -92,12 +89,12 @@ fn main() {
     }
     drop(tx_arc);
 
+    let mut img = RgbImage::new(size.width, size.height);
     for pixel in rx {
         img.put_pixel(pixel.0, pixel.1, pixel.2);
     }
 
     println!("Image buffer filled: {}ms", now.elapsed().as_millis());
-
     img.save(file_name).unwrap();
 
     println!("Image write complete: {}ms", now.elapsed().as_millis());
