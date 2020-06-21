@@ -27,6 +27,8 @@ struct Cli {
     output: PathBuf,
     #[structopt(short = "q", long = "quiet")]
     is_quiet: bool,
+    #[structopt(short = "i", long = "iter", default_value = "500")]
+    max_iter: u32,
 }
 
 fn main() {
@@ -36,7 +38,8 @@ fn main() {
         size,
         output: file_name,
         threads,
-        ..
+        is_quiet,
+        max_iter,
     } = args;
     let now = Instant::now();
 
@@ -50,11 +53,11 @@ fn main() {
     let band_heights: Vec<u32> = (0..size.height).collect::<Vec<u32>>();
     let bands_iter = band_heights
         .chunks(chunk_size)
-        .map(move |band| {
+        .map(|band| {
             band.into_iter()
                 .map(|h| {
                     (0..size.width)
-                        .map(move |w| (*h, w))
+                        .map(|w| (*h, w))
                         .collect::<Vec<(u32, u32)>>()
                 })
                 .flatten()
@@ -80,7 +83,11 @@ fn main() {
                     let re = x as f64 * scale_x + rect.a1;
                     let im = y as f64 * scale_y + rect.b1;
                     sender
-                        .send((x as u32, size.height - 1 - y as u32, mandelbrot(re, im)))
+                        .send((
+                            x as u32,
+                            size.height - 1 - y as u32,
+                            mandelbrot(re, im, max_iter),
+                        ))
                         .unwrap();
                 }
             }

@@ -2,7 +2,6 @@ use image::Rgb;
 use num::complex::Complex;
 use palette::{Gradient, LinSrgb};
 
-const ITERATIONS: i32 = 500;
 const GRADIENT: [(f64, (u8, u8, u8)); 5] = [
     (0.0, (0, 7, 100)),
     (0.16, (32, 107, 203)),
@@ -11,15 +10,14 @@ const GRADIENT: [(f64, (u8, u8, u8)); 5] = [
     (0.8575, (0, 2, 0)),
 ];
 
-fn get_gradient_color(index: i32) -> Rgb<u8> {
-    let iterations = ITERATIONS as f64;
+fn get_gradient_color(index: u32, max_iter: u32) -> Rgb<u8> {
     let gradient = Gradient::with_domain(
         GRADIENT
             .iter()
             .cloned()
             .map(|(scalar, (r, g, b))| {
                 (
-                    scalar * iterations,
+                    scalar * max_iter as f64,
                     LinSrgb::new(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0),
                 )
             })
@@ -35,15 +33,15 @@ fn get_gradient_color(index: i32) -> Rgb<u8> {
     ])
 }
 
-pub fn mandelbrot(re: f64, im: f64) -> Rgb<u8> {
+pub fn mandelbrot(re: f64, im: f64, max_iter: u32) -> Rgb<u8> {
     let c0 = Complex::new(re, im);
     let mut z = Complex::new(0_f64, 0_f64);
 
-    for i in 0..ITERATIONS {
+    for i in 0..max_iter {
         if z.norm() <= 2.0 {
             z = z * z + c0;
         } else {
-            return get_gradient_color(i);
+            return get_gradient_color(i, max_iter);
         }
     }
 
