@@ -31,6 +31,8 @@ struct Cli {
     max_iter: u32,
 }
 
+type Band = Vec<(u32, u32)>;
+
 fn main() {
     let args = Cli::from_args();
     let Cli {
@@ -61,11 +63,11 @@ fn main() {
                         .collect::<Vec<(u32, u32)>>()
                 })
                 .flatten()
-                .collect::<Vec<(u32, u32)>>()
+                .collect::<Band>()
         })
-        .collect::<Vec<Vec<(u32, u32)>>>();
+        .collect::<Vec<Band>>();
 
-    let (tx, rx) = mpsc::channel::<(u32, u32, image::Rgb<u8>)>();
+    let (tx, rx) = mpsc::channel::<Vec<(u32, u32, image::Rgb<u8>)>>();
 
     let tx_arc = Arc::new(tx);
     let bands_arc = Arc::new(Mutex::new(bands_iter.into_iter()));
@@ -74,6 +76,7 @@ fn main() {
         let sender = mpsc::Sender::clone(&tx_arc);
         thread::spawn(move || {
             let bands_iter = &*bands_clone;
+            let mut pixels = vec![];
             loop {
                 let band = bands_iter.lock().unwrap().next();
                 if band.is_none() {
@@ -82,23 +85,24 @@ fn main() {
                 for (y, x) in band.unwrap() {
                     let re = x as f64 * scale_x + rect.a1;
                     let im = y as f64 * scale_y + rect.b1;
-                    sender
-                        .send((
-                            x as u32,
-                            size.height - 1 - y as u32,
-                            mandelbrot(re, im, max_iter),
-                        ))
-                        .unwrap();
+                    pixels.push((
+                        x as u32,
+                        size.height - 1 - y as u32,
+                        mandelbrot(re, im, max_iter),
+                    ));
                 }
             }
+            sender.send(pixels).unwrap();
             drop(sender);
         });
     }
     drop(tx_arc);
 
     let mut img = RgbImage::new(size.width, size.height);
-    for pixel in rx {
-        img.put_pixel(pixel.0, pixel.1, pixel.2);
+    for pixels in rx {
+        for pixel in pixels {
+            img.put_pixel(pixel.0, pixel.1, pixel.2);
+        }
     }
 
     println!("Image buffer filled: {}ms", now.elapsed().as_millis());
