@@ -27,7 +27,7 @@ struct Cli {
     output: PathBuf,
     #[structopt(short = "q", long = "quiet")]
     is_quiet: bool,
-    #[structopt(short = "i", long = "iter", default_value = "500")]
+    #[structopt(short = "i", long = "iter", default_value = "1000")]
     max_iter: u32,
 }
 
@@ -76,12 +76,12 @@ fn main() {
         let sender = mpsc::Sender::clone(&tx_arc);
         thread::spawn(move || {
             let bands_iter = &*bands_clone;
-            let mut pixels = vec![];
             loop {
                 let band = bands_iter.lock().unwrap().next();
                 if band.is_none() {
                     break;
                 }
+                let mut pixels = vec![];
                 for (y, x) in band.unwrap() {
                     let re = x as f64 * scale_x + rect.a1;
                     let im = y as f64 * scale_y + rect.b1;
@@ -91,8 +91,8 @@ fn main() {
                         mandelbrot(re, im, max_iter),
                     ));
                 }
+                sender.send(pixels).unwrap();
             }
-            sender.send(pixels).unwrap();
             drop(sender);
         });
     }
