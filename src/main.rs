@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 extern crate image;
 
 use image::RgbImage;
@@ -23,6 +25,8 @@ struct Cli {
     rect: Rect,
     #[structopt(short, long, default_value = "1")]
     threads: usize,
+    #[structopt(short, long, default_value = "12")]
+    gran: usize,
     #[structopt(short, long, default_value = "zad15.png")]
     output: PathBuf,
     #[structopt(short = "q", long = "quiet")]
@@ -42,13 +46,20 @@ fn main() {
         threads,
         is_quiet,
         max_iter,
+        gran,
     } = args;
+
+    if !is_quiet {
+        simple_logger::init().unwrap();
+    }
+
+    info!("Starting...");
     let now = Instant::now();
 
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
     let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
 
-    let chunk_size = match size.height as usize / threads / threads {
+    let chunk_size = match size.height as usize / (gran * threads) {
         0 => 1,
         res => res,
     };
@@ -56,7 +67,7 @@ fn main() {
     let bands_iter = band_heights
         .chunks(chunk_size)
         .map(|band| {
-            band.into_iter()
+            band.iter()
                 .map(|h| {
                     (0..size.width)
                         .map(|w| (*h, w))
@@ -66,35 +77,47 @@ fn main() {
                 .collect::<Band>()
         })
         .collect::<Vec<Band>>();
+    info!("Bands prepared");
 
     let (tx, rx) = mpsc::channel::<Vec<(u32, u32, image::Rgb<u8>)>>();
 
     let tx_arc = Arc::new(tx);
     let bands_arc = Arc::new(Mutex::new(bands_iter.into_iter()));
-    for _ in 0..threads {
+    for thread_id in 0..threads {
         let bands_clone = Arc::clone(&bands_arc);
         let sender = mpsc::Sender::clone(&tx_arc);
-        thread::spawn(move || {
-            let bands_iter = &*bands_clone;
-            loop {
-                let band = bands_iter.lock().unwrap().next();
-                if band.is_none() {
-                    break;
+        thread::Builder::new()
+            .name(thread_id.to_string())
+            .spawn(move || {
+                info!(
+                    "Worker thread {} starting...",
+                    thread::current().name().unwrap()
+                );
+                let bands_iter = &*bands_clone;
+                loop {
+                    let band = bands_iter.lock().unwrap().next();
+                    if band.is_none() {
+                        break;
+                    }
+                    let pixels = band
+                        .unwrap()
+                        .iter()
+                        .map(|(y, x)| {
+                            let re = *x as f64 * scale_x + rect.a1;
+                            let im = *y as f64 * scale_y + rect.b1;
+                            (*x, size.height - 1 - *y, mandelbrot(re, im, max_iter))
+                        })
+                        .collect();
+
+                    sender.send(pixels).unwrap();
                 }
-                let mut pixels = vec![];
-                for (y, x) in band.unwrap() {
-                    let re = x as f64 * scale_x + rect.a1;
-                    let im = y as f64 * scale_y + rect.b1;
-                    pixels.push((
-                        x as u32,
-                        size.height - 1 - y as u32,
-                        mandelbrot(re, im, max_iter),
-                    ));
-                }
-                sender.send(pixels).unwrap();
-            }
-            drop(sender);
-        });
+                drop(sender);
+                info!(
+                    "Worker thread {} exiting...",
+                    thread::current().name().unwrap()
+                );
+            })
+            .unwrap();
     }
     drop(tx_arc);
 
@@ -105,8 +128,11 @@ fn main() {
         }
     }
 
-    println!("Image buffer filled: {}ms", now.elapsed().as_millis());
+    info!("Image buffer filled: {}ms", now.elapsed().as_millis());
     img.save(file_name).unwrap();
 
-    println!("Image write complete: {}ms", now.elapsed().as_millis());
+    info!(
+        "Image write complete: {}ms. Exiting...",
+        now.elapsed().as_millis()
+    );
 }

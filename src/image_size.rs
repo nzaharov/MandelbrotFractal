@@ -10,7 +10,7 @@ impl FromStr for ImageSize {
     type Err = SizeParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dimensions: Vec<&str> = s.split("x").collect();
+        let dimensions: Vec<&str> = s.split('x').collect();
         if dimensions.len() != 2 {
             return Err(SizeParseError);
         }

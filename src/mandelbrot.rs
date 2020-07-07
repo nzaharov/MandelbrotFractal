@@ -38,7 +38,7 @@ pub fn mandelbrot(re: f64, im: f64, max_iter: u32) -> Rgb<u8> {
     let mut z = Complex::new(0_f64, 0_f64);
 
     for i in 0..max_iter {
-        if z.norm() <= 2.0 {
+        if z.norm_sqr() <= 4.0 {
             z = z * z + c0;
         } else {
             return get_gradient_color(i, max_iter);

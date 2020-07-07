@@ -12,7 +12,7 @@ pub struct Rect {
 impl FromStr for Rect {
     type Err = RectParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bounds: Vec<&str> = s.split(":").collect();
+        let bounds: Vec<&str> = s.split(':').collect();
         if bounds.len() != 4 {
             return Err(RectParseError);
         }
