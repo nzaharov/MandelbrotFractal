@@ -64,7 +64,7 @@ fn main() {
         res => res,
     };
     let band_heights: Vec<u32> = (0..size.height).collect::<Vec<u32>>();
-    let bands_iter = band_heights
+    let bands = band_heights
         .chunks(chunk_size)
         .map(|band| {
             band.iter()
@@ -82,7 +82,7 @@ fn main() {
     let (tx, rx) = mpsc::channel::<Vec<(u32, u32, image::Rgb<u8>)>>();
 
     let tx_arc = Arc::new(tx);
-    let bands_arc = Arc::new(Mutex::new(bands_iter.into_iter()));
+    let bands_arc = Arc::new(Mutex::new(bands.into_iter()));
     for thread_id in 0..threads {
         let bands_clone = Arc::clone(&bands_arc);
         let sender = mpsc::Sender::clone(&tx_arc);
