@@ -61,8 +61,8 @@ fn main() {
         0 => 1,
         res => res,
     };
-    let band_heights: Vec<u32> = (0..size.height).collect::<Vec<u32>>();
-    let chunks = band_heights
+    let chunks = (0..size.height)
+        .collect::<Vec<u32>>()
         .chunks(chunk_size)
         .map(|band| {
             band.iter()
