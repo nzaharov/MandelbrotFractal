@@ -5,7 +5,7 @@ extern crate image;
 use image::RgbImage;
 use std::path::PathBuf;
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use structopt::StructOpt;
@@ -35,8 +35,6 @@ struct Cli {
     max_iter: u32,
 }
 
-type Band = Vec<(u32, u32)>;
-
 fn main() {
     let args = Cli::from_args();
     let Cli {
@@ -63,7 +61,8 @@ fn main() {
         0 => 1,
         res => res,
     };
-    let bands = (0..size.height).collect::<Vec<u32>>()
+    let chunks = (0..size.height)
+        .collect::<Vec<u32>>()
         .chunks(chunk_size)
         .map(|band| {
             band.iter()
@@ -73,17 +72,19 @@ fn main() {
                         .collect::<Vec<(u32, u32)>>()
                 })
                 .flatten()
-                .collect::<Band>()
+                .collect::<Vec<(u32, u32)>>()
         })
-        .collect::<Vec<Band>>();
+        .enumerate()
+        .fold(vec![Vec::new(); threads], |mut acc, (i, band)| {
+            acc.get_mut(i % threads).unwrap().extend(band);
+            acc
+        });
     info!("Bands prepared");
 
     let (tx, rx) = mpsc::channel::<Vec<(u32, u32, image::Rgb<u8>)>>();
 
     let tx_arc = Arc::new(tx);
-    let bands_arc = Arc::new(Mutex::new(bands.into_iter()));
-    for thread_id in 0..threads {
-        let bands_clone = Arc::clone(&bands_arc);
+    for (thread_id, chunk) in chunks.into_iter().enumerate() {
         let sender = mpsc::Sender::clone(&tx_arc);
         thread::Builder::new()
             .name(thread_id.to_string())
@@ -92,24 +93,16 @@ fn main() {
                     "Worker thread {} starting...",
                     thread::current().name().unwrap()
                 );
-                let bands_iter = &*bands_clone;
-                loop {
-                    let band = bands_iter.lock().unwrap().next();
-                    if band.is_none() {
-                        break;
-                    }
-                    let pixels = band
-                        .unwrap()
-                        .iter()
-                        .map(|(y, x)| {
-                            let re = *x as f64 * scale_x + rect.a1;
-                            let im = *y as f64 * scale_y + rect.b1;
-                            (*x, size.height - 1 - *y, mandelbrot(re, im, max_iter))
-                        })
-                        .collect();
+                let pixels = chunk
+                    .into_iter()
+                    .map(|(y, x)| {
+                        let re = x as f64 * scale_x + rect.a1;
+                        let im = y as f64 * scale_y + rect.b1;
+                        (x, size.height - 1 - y, mandelbrot(re, im, max_iter))
+                    })
+                    .collect();
 
-                    sender.send(pixels).unwrap();
-                }
+                sender.send(pixels).unwrap();
                 drop(sender);
                 info!(
                     "Worker thread {} exiting...",
