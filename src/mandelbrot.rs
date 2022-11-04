@@ -1,49 +1,39 @@
-use image::Rgb;
 use num::complex::Complex;
-use palette::{Gradient, LinSrgb};
+use palette::{
+    encoding::{Linear, Srgb},
+    rgb::Rgb,
+    Gradient,
+};
 
-const GRADIENT: [(f64, (u8, u8, u8)); 5] = [
-    (0.0, (0, 7, 100)),
-    (0.16, (32, 107, 203)),
-    (0.42, (237, 255, 255)),
-    (0.6425, (255, 170, 0)),
-    (0.8575, (0, 2, 0)),
-];
+fn get_gradient_color(
+    index: u32,
+    gradient: &Gradient<Rgb<Linear<Srgb>>, Vec<(f32, Rgb<Linear<Srgb>>)>>,
+) -> image::Rgb<u8> {
+    let color = gradient.get(index as f32);
 
-fn get_gradient_color(index: u32, max_iter: u32) -> Rgb<u8> {
-    let gradient = Gradient::with_domain(
-        GRADIENT
-            .iter()
-            .cloned()
-            .map(|(scalar, (r, g, b))| {
-                (
-                    scalar * max_iter as f64,
-                    LinSrgb::new(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0),
-                )
-            })
-            .collect(),
-    );
-
-    let color = gradient.get(index as f64);
-
-    Rgb([
+    image::Rgb([
         (color.red * 255.0) as u8,
         (color.green * 255.0) as u8,
         (color.blue * 255.0) as u8,
     ])
 }
 
-pub fn mandelbrot(re: f64, im: f64, max_iter: u32) -> Rgb<u8> {
+pub fn mandelbrot(
+    re: f64,
+    im: f64,
+    max_iter: u32,
+    gradient: &Gradient<Rgb<Linear<Srgb>>, Vec<(f32, Rgb<Linear<Srgb>>)>>,
+) -> image::Rgb<u8> {
     let c0 = Complex::new(re, im);
     let mut z = Complex::new(0_f64, 0_f64);
 
     for i in 0..max_iter {
-        if z.norm_sqr() <= 2500.0 {
-            z = z.exp() - c0;
+        if z.norm_sqr() <= 4.0 {
+            z = z * z + c0;
         } else {
-            return get_gradient_color(i, max_iter);
+            return get_gradient_color(i, gradient);
         }
     }
 
-    Rgb([0, 0, 0])
+    image::Rgb([0, 0, 0])
 }

@@ -3,6 +3,9 @@ extern crate log;
 extern crate image;
 
 use image::RgbImage;
+use palette::rgb;
+use palette::Gradient;
+use palette::LinSrgb;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -16,6 +19,14 @@ mod rect;
 use crate::image_size::*;
 use crate::mandelbrot::*;
 use crate::rect::*;
+
+const GRADIENT: [(f64, (u8, u8, u8)); 5] = [
+    (0.0, (0, 7, 100)),
+    (0.16, (32, 107, 203)),
+    (0.42, (237, 255, 255)),
+    (0.6425, (255, 170, 0)),
+    (0.8575, (0, 2, 0)),
+];
 
 #[derive(StructOpt)]
 struct Cli {
@@ -93,12 +104,34 @@ fn main() {
                     "Worker thread {} starting...",
                     thread::current().name().unwrap()
                 );
+
+                let gradient = Gradient::with_domain(
+                    GRADIENT
+                        .iter()
+                        .cloned()
+                        .map(|(s, (r, g, b))| {
+                            (
+                                s as f32,
+                                (rgb::Rgb::new(
+                                    r as f64 / 255.0,
+                                    g as f64 / 255.0,
+                                    b as f64 / 255.0,
+                                )),
+                            )
+                        })
+                        .map(|(scalar, color)| (scalar * max_iter as f32, LinSrgb::from(color)))
+                        .collect::<Vec<(f32, LinSrgb)>>(),
+                );
                 let pixels = chunk
                     .into_iter()
                     .map(|(y, x)| {
                         let re = x as f64 * scale_x + rect.a1;
                         let im = y as f64 * scale_y + rect.b1;
-                        (x, size.height - 1 - y, mandelbrot(re, im, max_iter))
+                        (
+                            x,
+                            size.height - 1 - y,
+                            mandelbrot(re, im, max_iter, &gradient),
+                        )
                     })
                     .collect();
 
