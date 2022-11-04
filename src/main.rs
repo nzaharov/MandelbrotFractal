@@ -3,51 +3,95 @@ extern crate log;
 extern crate image;
 
 use image::RgbImage;
-use palette::rgb;
-use palette::Gradient;
-use palette::LinSrgb;
-use std::path::PathBuf;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::thread;
+use image_size::ImageSize;
+use rayon::prelude::*;
+use rect::Rect;
 use std::time::Instant;
-use structopt::StructOpt;
 
+mod cli;
+mod gradient;
 mod image_size;
 mod mandelbrot;
 mod rect;
-use crate::image_size::*;
+use crate::cli::Cli;
+use crate::gradient::get_gradient;
 use crate::mandelbrot::*;
-use crate::rect::*;
 
-const GRADIENT: [(f64, (u8, u8, u8)); 5] = [
-    (0.0, (0, 7, 100)),
-    (0.16, (32, 107, 203)),
-    (0.42, (237, 255, 255)),
-    (0.6425, (255, 170, 0)),
-    (0.8575, (0, 2, 0)),
-];
+fn create_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+}
 
-#[derive(StructOpt)]
-struct Cli {
-    #[structopt(short, long, default_value = "640x480")]
-    size: ImageSize,
-    #[structopt(short, long, default_value = "-2.0:2.0:-2.0:2.0")]
-    rect: Rect,
-    #[structopt(short, long, default_value = "1")]
-    threads: usize,
-    #[structopt(short, long, default_value = "12")]
-    gran: usize,
-    #[structopt(short, long, default_value = "zad15.png")]
-    output: PathBuf,
-    #[structopt(short = "q", long = "quiet")]
-    is_quiet: bool,
-    #[structopt(short = "i", long = "iter", default_value = "1000")]
-    max_iter: u32,
+fn run(rect: Rect, size: ImageSize, threads: usize, max_iter: u32, gran: usize) -> Vec<u8> {
+    info!("Starting...");
+
+    let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
+    let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
+
+    let chunk_size = match size.height as usize / (gran * threads) {
+        0 => 1,
+        res => res,
+    };
+
+    let chunks = (0..size.height)
+        .collect::<Vec<u32>>()
+        .chunks(chunk_size)
+        .map(|band| {
+            band.iter()
+                .cloned()
+                .map(|h| {
+                    (
+                        h,
+                        (0..size.width).map(|w| (h, w)).collect::<Vec<(u32, u32)>>(),
+                    )
+                })
+                .collect::<Vec<(u32, Vec<(u32, u32)>)>>()
+        })
+        .enumerate()
+        .fold(vec![Vec::new(); threads], |mut acc, (i, band)| {
+            acc.get_mut(i % threads).unwrap().extend(band);
+            acc
+        });
+    info!("Bands prepared");
+
+    let gradient = get_gradient(max_iter);
+
+    let mut lines = chunks
+        .into_par_iter()
+        .enumerate()
+        .flat_map(|(i, chunk)| {
+            info!("Worker thread {} starting...", i);
+
+            let subpixel_lines = chunk
+                .into_iter()
+                .map(|(h, line)| {
+                    (
+                        h,
+                        line.into_iter()
+                            .flat_map(|(y, x)| {
+                                let re = x as f64 * scale_x + rect.a1;
+                                let im = y as f64 * scale_y + rect.b1;
+
+                                mandelbrot(re, im, max_iter, &gradient)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect::<Vec<(u32, Vec<u8>)>>();
+
+            info!("Worker thread {} exiting...", i);
+            subpixel_lines
+        })
+        .collect::<Vec<(u32, Vec<u8>)>>();
+
+    lines.sort_by_cached_key(|line| line.0);
+
+    lines.into_iter().flat_map(|line| line.1).collect()
 }
 
 fn main() {
-    let args = Cli::from_args();
+    let args = Cli::load();
     let Cli {
         rect,
         size,
@@ -62,100 +106,15 @@ fn main() {
         simple_logger::init().unwrap();
     }
 
-    info!("Starting...");
     let now = Instant::now();
 
-    let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
-    let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
+    let pixels = create_pool(threads)
+        .unwrap()
+        .install(|| run(rect, size, threads, max_iter, gran));
 
-    let chunk_size = match size.height as usize / (gran * threads) {
-        0 => 1,
-        res => res,
-    };
-    let chunks = (0..size.height)
-        .collect::<Vec<u32>>()
-        .chunks(chunk_size)
-        .map(|band| {
-            band.iter()
-                .map(|h| {
-                    (0..size.width)
-                        .map(|w| (*h, w))
-                        .collect::<Vec<(u32, u32)>>()
-                })
-                .flatten()
-                .collect::<Vec<(u32, u32)>>()
-        })
-        .enumerate()
-        .fold(vec![Vec::new(); threads], |mut acc, (i, band)| {
-            acc.get_mut(i % threads).unwrap().extend(band);
-            acc
-        });
-    info!("Bands prepared");
-
-    let (tx, rx) = mpsc::channel::<Vec<(u32, u32, image::Rgb<u8>)>>();
-
-    let tx_arc = Arc::new(tx);
-    for (thread_id, chunk) in chunks.into_iter().enumerate() {
-        let sender = mpsc::Sender::clone(&tx_arc);
-        thread::Builder::new()
-            .name(thread_id.to_string())
-            .spawn(move || {
-                info!(
-                    "Worker thread {} starting...",
-                    thread::current().name().unwrap()
-                );
-
-                let gradient = Gradient::with_domain(
-                    GRADIENT
-                        .iter()
-                        .cloned()
-                        .map(|(s, (r, g, b))| {
-                            (
-                                s as f32,
-                                (rgb::Rgb::new(
-                                    r as f64 / 255.0,
-                                    g as f64 / 255.0,
-                                    b as f64 / 255.0,
-                                )),
-                            )
-                        })
-                        .map(|(scalar, color)| (scalar * max_iter as f32, LinSrgb::from(color)))
-                        .collect::<Vec<(f32, LinSrgb)>>(),
-                );
-                let pixels = chunk
-                    .into_iter()
-                    .map(|(y, x)| {
-                        let re = x as f64 * scale_x + rect.a1;
-                        let im = y as f64 * scale_y + rect.b1;
-                        (
-                            x,
-                            size.height - 1 - y,
-                            mandelbrot(re, im, max_iter, &gradient),
-                        )
-                    })
-                    .collect();
-
-                sender.send(pixels).unwrap();
-                drop(sender);
-                info!(
-                    "Worker thread {} exiting...",
-                    thread::current().name().unwrap()
-                );
-            })
-            .unwrap();
-    }
-    drop(tx_arc);
-
-    let mut img = RgbImage::new(size.width, size.height);
-    for pixels in rx {
-        for pixel in pixels {
-            img.put_pixel(pixel.0, pixel.1, pixel.2);
-        }
-    }
-
+    let img = RgbImage::from_vec(size.width, size.height, pixels).unwrap();
     info!("Image buffer filled: {}ms", now.elapsed().as_millis());
     img.save(file_name).unwrap();
-
     info!(
         "Image write complete: {}ms. Exiting...",
         now.elapsed().as_millis()
