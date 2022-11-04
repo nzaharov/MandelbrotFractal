@@ -21,10 +21,16 @@ use crate::mandelbrot::*;
 fn create_pool(num_threads: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
     rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
+        .exit_handler(|thread| info!("Thread {} exited!", thread))
         .build()
 }
 
-fn run(rect: Rect, size: ImageSize, chunk_size: usize, max_iter: u32) -> Vec<u8> {
+fn run(rect: Rect, size: ImageSize, chunk_count: usize, max_iter: u32) -> Vec<u8> {
+    let chunk_size = match size.height as usize / chunk_count {
+        0 => 1,
+        res => res,
+    };
+
     let scale_x = (rect.a2 - rect.a1) / (size.width as f64 - 1.0);
     let scale_y = (rect.b2 - rect.b1) / (size.height as f64 - 1.0);
 
@@ -64,16 +70,16 @@ fn main() {
     }
 
     let now = Instant::now();
-    info!("Starting...");
 
-    let chunk_size = match size.height as usize / (gran * threads) {
-        0 => 1,
-        res => res,
-    };
+    let chunk_count = gran * threads;
+    info!(
+        "Starting on {} threads with {} chunks...",
+        threads, chunk_count
+    );
 
     let subpixels = create_pool(threads)
         .unwrap()
-        .install(|| run(rect, size, chunk_size, max_iter));
+        .install(|| run(rect, size, chunk_count, max_iter));
 
     let img = RgbImage::from_vec(size.width, size.height, subpixels).unwrap();
     info!("Image buffer filled: {}ms", now.elapsed().as_millis());
