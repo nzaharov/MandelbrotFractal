@@ -13,6 +13,7 @@ mod gradient;
 mod image_size;
 mod mandelbrot;
 mod rect;
+
 use crate::cli::Cli;
 use crate::gradient::get_gradient;
 use crate::mandelbrot::*;
@@ -40,12 +41,7 @@ fn run(rect: Rect, size: ImageSize, threads: usize, max_iter: u32, gran: usize) 
         .map(|band| {
             band.iter()
                 .cloned()
-                .map(|h| {
-                    (
-                        h,
-                        (0..size.width).map(|w| (h, w)).collect::<Vec<(u32, u32)>>(),
-                    )
-                })
+                .map(|h| (h, (0..size.width).map(|w| (h, w)).collect()))
                 .collect::<Vec<(u32, Vec<(u32, u32)>)>>()
         })
         .enumerate()
@@ -69,12 +65,10 @@ fn run(rect: Rect, size: ImageSize, threads: usize, max_iter: u32, gran: usize) 
                     (
                         h,
                         line.into_iter()
-                            .flat_map(|(y, x)| {
-                                let re = x as f64 * scale_x + rect.a1;
-                                let im = y as f64 * scale_y + rect.b1;
-
-                                mandelbrot(re, im, max_iter, &gradient)
+                            .map(|(y, x)| {
+                                (x as f64 * scale_x + rect.a1, y as f64 * scale_y + rect.b1)
                             })
+                            .flat_map(|(re, im)| mandelbrot(re, im, max_iter, &gradient))
                             .collect(),
                     )
                 })
@@ -108,11 +102,11 @@ fn main() {
 
     let now = Instant::now();
 
-    let pixels = create_pool(threads)
+    let subpixels = create_pool(threads)
         .unwrap()
         .install(|| run(rect, size, threads, max_iter, gran));
 
-    let img = RgbImage::from_vec(size.width, size.height, pixels).unwrap();
+    let img = RgbImage::from_vec(size.width, size.height, subpixels).unwrap();
     info!("Image buffer filled: {}ms", now.elapsed().as_millis());
     img.save(file_name).unwrap();
     info!(
